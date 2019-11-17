@@ -23,6 +23,7 @@ type Github interface {
 	ListOpenPullRequests() ([]*PullRequest, error)
 	ListModifiedFiles(int) ([]string, error)
 	PostComment(string, string) error
+	PostCommentWithAttachments(string, string, []Attachment) error
 	GetPullRequest(string, string) (*PullRequest, error)
 	GetChangedFiles(string, string) ([]ChangedFileObject, error)
 	UpdateCommitStatus(string, string, string, string, string, string) error
@@ -202,12 +203,16 @@ func (m *GithubClient) ListModifiedFiles(prNumber int) ([]string, error) {
 
 // PostComment to a pull request or issue.
 func (m *GithubClient) PostComment(prNumber, comment string) error {
+	return m.PostCommentWithAttachments(prNumber, comment, []Attachment{})
+}
+
+func (m *GithubClient) PostCommentWithAttachments(prNumber, comment string, attachments []Attachment) error {
 	pr, err := strconv.Atoi(prNumber)
 	if err != nil {
 		return fmt.Errorf("failed to convert pull request number to int: %s", err)
 	}
 
-	_, _, err = m.V3.Issues.CreateComment(
+	issueComment, _, err := m.V3.Issues.CreateComment(
 		context.TODO(),
 		m.Owner,
 		m.Repository,
@@ -216,7 +221,46 @@ func (m *GithubClient) PostComment(prNumber, comment string) error {
 			Body: github.String(comment),
 		},
 	)
+
+	if err != nil {
+		return err
+	}
+
+	for _, attachment := range attachments {
+		_, _, err = m.CreateAttachment(*issueComment.ID, attachment.Title, attachment.File)
+		if err != nil {
+			return err
+		}
+	}
+
 	return err
+}
+
+type GitHubAttachment struct {
+	ID    *int64  `json:"id,omitempty"`
+	Title *string `json:"title,omitempty"`
+	Body  *string `json:"body,omitempty"`
+}
+
+// PostAttachment to a pull request or issue.
+func (m *GithubClient) CreateAttachment(contentReferenceID int64, title, body string) (*GitHubAttachment, *github.Response, error) {
+	u := fmt.Sprintf("content_references/%v/attachments", contentReferenceID)
+	payload := &GitHubAttachment{Title: github.String(title), Body: github.String(body)}
+	req, err := m.V3.NewRequest("POST", u, payload)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// TODO: remove custom Accept headers when APIs fully launch.
+	req.Header.Set("Accept", "application/vnd.github.corsair-preview+json")
+
+	attachment := &GitHubAttachment{}
+	resp, err := m.V3.Do(context.TODO(), req, attachment)
+	if err != nil {
+		return nil, resp, err
+	}
+
+	return attachment, resp, nil
 }
 
 // GetChangedFiles ...

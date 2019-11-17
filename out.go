@@ -62,9 +62,20 @@ func Put(request PutRequest, manager Github, inputDir string) (*PutResponse, err
 		}
 	}
 
+	for i, attachment := range request.Params.CommentAttachments {
+		content, err := ioutil.ReadFile(filepath.Join(inputDir, attachment.FileName))
+		if err != nil {
+			return nil, fmt.Errorf("failed to create attachment: %s", err)
+		}
+
+		attachment.File = string(content)
+
+		request.Params.CommentAttachments[i] = attachment
+	}
+
 	// Set comment if specified
 	if p := request.Params; p.Comment != "" {
-		err = manager.PostComment(version.PR, os.ExpandEnv(p.Comment))
+		err = manager.PostCommentWithAttachments(version.PR, os.ExpandEnv(p.Comment), p.CommentAttachments)
 		if err != nil {
 			return nil, fmt.Errorf("failed to post comment: %s", err)
 		}
@@ -77,8 +88,9 @@ func Put(request PutRequest, manager Github, inputDir string) (*PutResponse, err
 			return nil, fmt.Errorf("failed to read comment file: %s", err)
 		}
 		comment := string(content)
+
 		if comment != "" {
-			err = manager.PostComment(version.PR, os.ExpandEnv(comment))
+			err = manager.PostCommentWithAttachments(version.PR, os.ExpandEnv(comment), p.CommentAttachments)
 			if err != nil {
 				return nil, fmt.Errorf("failed to post comment: %s", err)
 			}
@@ -103,18 +115,25 @@ type PutResponse struct {
 	Metadata Metadata `json:"metadata,omitempty"`
 }
 
+type Attachment struct {
+	File     string `json:"file,omitempty"`
+	FileName string `json:"file_name"`
+	Title    string `json:"title"`
+}
+
 // PutParameters for the resource.
 type PutParameters struct {
-	Path                   string `json:"path"`
-	BaseContext            string `json:"base_context"`
-	Context                string `json:"context"`
-	TargetURL              string `json:"target_url"`
-	DescriptionFile        string `json:"description_file"`
-	Description            string `json:"description"`
-	Status                 string `json:"status"`
-	CommentFile            string `json:"comment_file"`
-	Comment                string `json:"comment"`
-	DeletePreviousComments bool   `json:"delete_previous_comments"`
+	Path                   string       `json:"path"`
+	BaseContext            string       `json:"base_context"`
+	Context                string       `json:"context"`
+	TargetURL              string       `json:"target_url"`
+	DescriptionFile        string       `json:"description_file"`
+	Description            string       `json:"description"`
+	Status                 string       `json:"status"`
+	CommentFile            string       `json:"comment_file"`
+	Comment                string       `json:"comment"`
+	DeletePreviousComments bool         `json:"delete_previous_comments"`
+	CommentAttachments     []Attachment `json:"attachments"`
 }
 
 // Validate the put parameters.

@@ -410,7 +410,7 @@ func (fake *FakeGithub) ListOpenPullRequestsReturnsOnCall(i int, result1 []*reso
 	}{result1, result2}
 }
 
-func (fake *FakeGithub) PostComment(arg1 string, arg2 string) error {
+func (fake *FakeGithub) PostCommentWithAttachments(arg1 string, arg2 string, _ []resource.Attachment) error {
 	fake.postCommentMutex.Lock()
 	ret, specificReturn := fake.postCommentReturnsOnCall[len(fake.postCommentArgsForCall)]
 	fake.postCommentArgsForCall = append(fake.postCommentArgsForCall, struct {
@@ -427,6 +427,10 @@ func (fake *FakeGithub) PostComment(arg1 string, arg2 string) error {
 	}
 	fakeReturns := fake.postCommentReturns
 	return fakeReturns.result1
+}
+
+func (fake *FakeGithub) PostComment(arg1 string, arg2 string) error {
+	return fake.PostCommentWithAttachments(arg1, arg2, []resource.Attachment{})
 }
 
 func (fake *FakeGithub) PostCommentCallCount() int {
